@@ -15,8 +15,9 @@
 #define EVENT_JSON              "mod_audio_stream::json"
 #define EVENT_PLAY              "mod_audio_stream::play"
 
-/* Default write buffer: 2 seconds at 16kHz PCM16 mono = 64000 bytes */
-#define WRITE_BUFFER_SIZE       (64000)
+/* Write buffer: 20 seconds at 16kHz PCM16 mono = 640000 bytes.
+ * Needs to be large because OpenAI sends audio faster than real-time. */
+#define WRITE_BUFFER_SIZE       (640000)
 
 typedef void (*responseHandler_t)(switch_core_session_t* session, const char* eventName, const char* json);
 
