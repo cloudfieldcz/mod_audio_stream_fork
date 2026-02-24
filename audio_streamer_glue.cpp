@@ -986,8 +986,7 @@ extern "C" {
         if (!tech_pvt || tech_pvt->cleanup_started) return SWITCH_TRUE;
         if (!tech_pvt->wbuffer) return SWITCH_TRUE;
 
-        switch_frame_t *write_frame = NULL;
-        switch_core_media_bug_get_write_replace_frame(bug, &write_frame);
+        switch_frame_t *write_frame = switch_core_media_bug_get_write_replace_frame(bug);
 
         if (!write_frame || !write_frame->data || write_frame->datalen == 0) {
             return SWITCH_TRUE;
@@ -1008,20 +1007,13 @@ extern "C" {
              * For 16kHz input, we need 320 input samples = 640 bytes.
              */
             spx_uint32_t out_samples = write_frame->datalen / sizeof(spx_int16_t);
-            /* Input samples needed: out_samples * (input_rate / output_rate) */
-            spx_uint32_t in_samples_needed = out_samples * tech_pvt->sampling /
-                (tech_pvt->sampling == (int)(write_frame->rate ? write_frame->rate : 8000) ?
-                 1 : (write_frame->rate ? write_frame->rate : 8000));
-
-            /* Simpler: just compute ratio from the resampler config.
-             * write_resampler: desiredSampling -> actual_samples_per_second
-             * Input is at desiredSampling (e.g. 16k), output at channel rate (e.g. 8k).
-             * For out_samples output, we need in_samples = out_samples * (16k/8k) = out_samples * 2
+            /* Compute input samples needed from resampler ratio.
+             * write_resampler: desiredSampling (e.g. 16k) -> channel rate (e.g. 8k).
+             * For out_samples output, we need in_samples = out_samples * (16k/8k).
              */
             spx_uint32_t ratio_num, ratio_den;
             speex_resampler_get_ratio(tech_pvt->write_resampler, &ratio_num, &ratio_den);
-            /* ratio_num = input rate, ratio_den = output rate */
-            in_samples_needed = (spx_uint32_t)((uint64_t)out_samples * ratio_num / ratio_den + 1);
+            spx_uint32_t in_samples_needed = (spx_uint32_t)((uint64_t)out_samples * ratio_num / ratio_den + 1);
             size_t in_bytes_needed = in_samples_needed * sizeof(spx_int16_t);
 
             if (available >= in_bytes_needed) {
