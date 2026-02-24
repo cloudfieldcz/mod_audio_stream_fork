@@ -274,12 +274,16 @@ private:
 
         auto *bug = get_media_bug(psession);
         if (!bug) {
+            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_WARNING,
+                "onBinaryReceived: no media bug for session %s\n", m_sessionId.c_str());
             switch_core_session_rwunlock(psession);
             return;
         }
 
         auto* tech_pvt = (private_t*) switch_core_media_bug_get_user_data(bug);
         if (!tech_pvt || !tech_pvt->wbuffer) {
+            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_WARNING,
+                "onBinaryReceived: no tech_pvt or wbuffer for session %s\n", m_sessionId.c_str());
             switch_core_session_rwunlock(psession);
             return;
         }
@@ -287,7 +291,11 @@ private:
         switch_mutex_lock(tech_pvt->write_mutex);
         tech_pvt->write_active = 1;
         switch_buffer_write(tech_pvt->wbuffer, data, len);
+        switch_size_t inuse = switch_buffer_inuse(tech_pvt->wbuffer);
         switch_mutex_unlock(tech_pvt->write_mutex);
+
+        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG,
+            "onBinaryReceived: %zu bytes, wbuffer inuse=%zu\n", len, (size_t)inuse);
 
         switch_core_session_rwunlock(psession);
     }
@@ -994,9 +1002,18 @@ extern "C" {
 
         const size_t frame_bytes = write_frame->datalen;
 
+        static int write_log_counter = 0;
         switch_mutex_lock(tech_pvt->write_mutex);
         switch_size_t available = switch_buffer_inuse(tech_pvt->wbuffer);
         int was_active = tech_pvt->write_active;
+
+        if (++write_log_counter % 250 == 1) {
+            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO,
+                "stream_frame_write: frame_bytes=%zu, available=%zu, was_active=%d, has_resampler=%d, frame_rate=%u\n",
+                frame_bytes, (size_t)available, was_active,
+                tech_pvt->write_resampler ? 1 : 0,
+                (unsigned)write_frame->rate);
+        }
 
         if (tech_pvt->write_resampler && available > 0) {
             /*
